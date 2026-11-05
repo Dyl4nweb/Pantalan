@@ -27,7 +27,8 @@ An interactive, procedural 3D diorama of an authentic Philippine coastal port (*
   - 5 Cinematic Camera Presets: `Overview`, `Pantalan`, `Reef & Clam`, `Parola`, `Sandbar & Paraw`.
   - Interactive "Poke Jelly" impulse button and direct raycast clicks anywhere on the sea jelly block.
   - Real-time lighting toggle: **Noon Sun** ↔ **Manila Bay Sunset** (warm golden hour transition with glowing beacons and lanterns).
-  - Telemetry readouts: Jelly Energy, FPS counter, and lighting mode.
+  - Telemetry readouts: Jelly Energy, FPS counter, lighting mode, and live **Unique Visitors & Page Views** tracking (zero database required).
+  - Dedication badges & commemorative plaques honoring Dylan Ramos.
 
 ---
 
@@ -76,3 +77,4 @@ npm start
 ## 📜 License
 
 Created with pride for Philippine maritime and cultural heritage. Engineered by Dylan Ramos.
+

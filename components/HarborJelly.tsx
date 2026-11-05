@@ -1100,11 +1100,40 @@ export default function HarborJelly() {
   const [fps, setFps] = useState<number>(60);
   const [jellyEnergy, setJellyEnergy] = useState<number>(0);
   const [activePreset, setActivePreset] = useState<CameraPreset>("overview");
+  const [visitorStats, setVisitorStats] = useState<{ unique: number; total: number } | null>(null);
 
   // Interaction refs
   const pokeTriggerRef = useRef<(() => void) | null>(null);
   const toggleSunsetRef = useRef<(() => void) | null>(null);
   const setPresetRef = useRef<((preset: CameraPreset) => void) | null>(null);
+
+  // Zero-database unique visitor monitoring
+  useEffect(() => {
+    try {
+      const storageKey = "pantalan_visited_device";
+      const hasVisited = typeof window !== "undefined" && !!window.localStorage.getItem(storageKey);
+      const isUnique = !hasVisited;
+
+      fetch(`/api/visitors?unique=${isUnique ? "1" : "0"}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { uniqueVisitors?: number; totalViews?: number } | null) => {
+          if (data && typeof data.uniqueVisitors === "number" && typeof data.totalViews === "number") {
+            setVisitorStats({
+              unique: data.uniqueVisitors,
+              total: data.totalViews,
+            });
+            if (isUnique && typeof window !== "undefined") {
+              window.localStorage.setItem(storageKey, "1");
+            }
+          }
+        })
+        .catch(() => {
+          // Graceful fallback for offline dev mode
+        });
+    } catch {
+      // Ignore private browsing storage restrictions
+    }
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -3656,10 +3685,22 @@ export default function HarborJelly() {
             Procedural realistic sea jelly diorama harboring a miniature Philippine island port with inter-island Ro-Ro ferry, outrigger bangkas with boat wake, Palawan coral reef with animated caustics, and an authentic jeepney pier.
           </p>
 
-          {/* Engineer Attribution Badge */}
-          <div className="mt-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-950/70 border border-cyan-400/30 text-[11px] text-cyan-200 w-fit">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            <span>Engineered by <strong className="text-white font-semibold tracking-wide">Dylan Ramos</strong></span>
+          {/* Badges: Attribution & Live Unique Visitors */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            {/* Engineer Attribution Badge */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-950/70 border border-cyan-400/30 text-[11px] text-cyan-200 w-fit">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              <span>Engineered by <strong className="text-white font-semibold tracking-wide">Dylan Ramos</strong></span>
+            </div>
+
+            {/* Live Zero-DB Unique Visitors Monitor */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/70 border border-emerald-400/30 text-[11px] text-emerald-300 w-fit">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Visitors: <strong className="text-white font-mono font-semibold">{visitorStats ? visitorStats.unique.toLocaleString() : "..."}</strong></span>
+              {visitorStats && (
+                <span className="text-slate-400 text-[10px]">({visitorStats.total.toLocaleString()} views)</span>
+              )}
+            </div>
           </div>
 
           {/* Real-time telemetry tags */}
