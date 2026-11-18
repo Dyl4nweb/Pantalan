@@ -1101,6 +1101,8 @@ export default function HarborJelly() {
   const [jellyEnergy, setJellyEnergy] = useState<number>(0);
   const [activePreset, setActivePreset] = useState<CameraPreset>("overview");
   const [visitorStats, setVisitorStats] = useState<{ unique: number; total: number } | null>(null);
+  const [isHudVisible, setIsHudVisible] = useState<boolean>(true);
+  const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
 
   // Interaction refs
   const pokeTriggerRef = useRef<(() => void) | null>(null);
@@ -1150,6 +1152,23 @@ export default function HarborJelly() {
       60
     );
     camera.position.set(11.8, 9.4, 12.0);
+
+    const updateResponsiveCamera = (w: number, h: number) => {
+      const aspect = w / h;
+      camera.aspect = aspect;
+      if (aspect < 0.65) {
+        camera.fov = 58;
+      } else if (aspect < 0.9) {
+        camera.fov = 52;
+      } else if (aspect < 1.2) {
+        camera.fov = 46;
+      } else {
+        camera.fov = 42;
+      }
+      camera.updateProjectionMatrix();
+    };
+
+    updateResponsiveCamera(container.clientWidth, container.clientHeight);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -3279,13 +3298,13 @@ export default function HarborJelly() {
     const pointer = new THREE.Vector2();
     let pointerDownPos = { x: 0, y: 0 };
 
-    const onPointerDown = (e: MouseEvent) => {
+    const onPointerDown = (e: MouseEvent | PointerEvent) => {
       pointerDownPos = { x: e.clientX, y: e.clientY };
     };
 
-    const onPointerUp = (e: MouseEvent) => {
+    const onPointerUp = (e: MouseEvent | PointerEvent) => {
       const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
-      if (dist > 6) return;
+      if (dist > 12) return;
 
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -3311,8 +3330,7 @@ export default function HarborJelly() {
         const width = entry.contentRect.width;
         const height = entry.contentRect.height;
         if (width === 0 || height === 0) return;
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
+        updateResponsiveCamera(width, height);
         renderer.setSize(width, height);
       }
     });
@@ -3665,63 +3683,114 @@ export default function HarborJelly() {
   return (
     <div className="relative w-full h-screen bg-[#081224] overflow-hidden select-none font-sans">
       {/* 3D WebGL Canvas Container */}
-      <div ref={containerRef} className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing" />
+      <div ref={containerRef} className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing touch-none" />
 
       {/* Glassmorphic Minimal HUD Overlay */}
-      <div className="absolute top-5 left-5 z-20 pointer-events-none flex flex-col gap-3">
+      <div
+        className={`absolute top-3 left-3 right-3 sm:top-5 sm:left-5 sm:right-auto z-20 pointer-events-none flex flex-col gap-2 sm:gap-3 transition-all duration-300 ${
+          isHudVisible
+            ? "opacity-100 translate-y-0"
+            : "opacity-0 -translate-y-4 pointer-events-none"
+        }`}
+      >
         {/* Title Header Card */}
-        <div className="pointer-events-auto backdrop-blur-md bg-slate-900/80 border border-white/10 rounded-2xl px-5 py-4 shadow-2xl max-w-sm transition-all hover:bg-slate-900/90">
-          <div className="flex items-center justify-between gap-3 mb-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-              <h1 className="text-base font-semibold tracking-wide text-white">Pantalan Jelly</h1>
+        <div className="pointer-events-auto backdrop-blur-md bg-slate-900/85 border border-white/10 rounded-2xl p-3 sm:px-5 sm:py-4 shadow-2xl w-full sm:max-w-sm transition-all hover:bg-slate-900/90">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shrink-0" />
+              <h1 className="text-sm sm:text-base font-semibold tracking-wide text-white truncate">
+                Pantalan Jelly
+              </h1>
             </div>
-            <span className="text-[11px] font-medium tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-400/20 uppercase">
-              Realistic Philippine Port
-            </span>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[10px] sm:text-[11px] font-medium tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-400/20 uppercase whitespace-nowrap">
+                <span className="hidden sm:inline">Realistic </span>PH Port
+              </span>
+
+              {/* Info / Description Toggle Button for Mobile */}
+              <button
+                onClick={() => setIsInfoOpen((prev) => !prev)}
+                className="flex items-center justify-center w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors"
+                title={isInfoOpen ? "Hide Story & Telemetry" : "Show Story & Telemetry"}
+                aria-label="Toggle Details"
+              >
+                <svg
+                  className={`w-3.5 h-3.5 text-cyan-400 transition-transform duration-200 ${
+                    isInfoOpen ? "rotate-180" : ""
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <p className="text-xs text-slate-300/80 leading-relaxed">
-            Procedural realistic sea jelly diorama harboring a miniature Philippine island port with inter-island Ro-Ro ferry, outrigger bangkas with boat wake, Palawan coral reef with animated caustics, and an authentic jeepney pier.
-          </p>
-
-          {/* Badges: Attribution & Live Unique Visitors */}
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          {/* Badges: Attribution & Live Unique Visitors (Always Compact & Visible) */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
             {/* Engineer Attribution Badge */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-950/70 border border-cyan-400/30 text-[11px] text-cyan-200 w-fit">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-              <span>Engineered by <strong className="text-white font-semibold tracking-wide">Dylan Ramos</strong></span>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg bg-cyan-950/70 border border-cyan-400/30 text-[10px] sm:text-[11px] text-cyan-200 w-fit">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse shrink-0" />
+              <span>
+                Engineered by{" "}
+                <strong className="text-white font-semibold tracking-wide">Dylan Ramos</strong>
+              </span>
             </div>
 
             {/* Live Zero-DB Unique Visitors Monitor */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/70 border border-emerald-400/30 text-[11px] text-emerald-300 w-fit">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Visitors: <strong className="text-white font-mono font-semibold">{visitorStats ? visitorStats.unique.toLocaleString() : "..."}</strong></span>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg bg-emerald-950/70 border border-emerald-400/30 text-[10px] sm:text-[11px] text-emerald-300 w-fit">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span>
+                Visitors:{" "}
+                <strong className="text-white font-mono font-semibold">
+                  {visitorStats ? visitorStats.unique.toLocaleString() : "..."}
+                </strong>
+              </span>
               {visitorStats && (
-                <span className="text-slate-400 text-[10px]">({visitorStats.total.toLocaleString()} views)</span>
+                <span className="text-slate-400 text-[9px] sm:text-[10px]">
+                  ({visitorStats.total.toLocaleString()} views)
+                </span>
               )}
             </div>
           </div>
 
-          {/* Real-time telemetry tags */}
-          <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
-            <div className="flex items-center gap-2">
-              <span>Jelly Energy:</span>
-              <span className="font-mono text-cyan-400">{jellyEnergy.toFixed(1)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span>FPS:</span>
-              <span className="font-mono text-emerald-400">{fps}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              <span className="text-slate-300 font-medium">{isSunset ? "Manila Bay Sunset" : "Noon Sun"}</span>
+          {/* Expandable Story Description & Telemetry (Hidden on mobile by default to keep screen clear) */}
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              isInfoOpen
+                ? "max-h-96 opacity-100 mt-2.5 pt-2.5 border-t border-white/10"
+                : "max-h-0 sm:max-h-96 opacity-0 sm:opacity-100 sm:mt-2.5 sm:pt-2.5 sm:border-t sm:border-white/10"
+            }`}
+          >
+            <p className="text-[11px] sm:text-xs text-slate-300/80 leading-relaxed">
+              Procedural realistic sea jelly diorama harboring a miniature Philippine island port with inter-island Ro-Ro ferry, outrigger bangkas with boat wake, Palawan coral reef with animated caustics, and an authentic jeepney pier.
+            </p>
+
+            {/* Real-time telemetry tags */}
+            <div className="mt-2.5 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <span>Jelly Energy:</span>
+                <span className="font-mono text-cyan-400">{jellyEnergy.toFixed(1)}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span>FPS:</span>
+                <span className="font-mono text-emerald-400">{fps}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                <span className="text-slate-300 font-medium">
+                  {isSunset ? "Manila Bay Sunset" : "Noon Sun"}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Camera Presets Selector */}
-        <div className="pointer-events-auto backdrop-blur-md bg-slate-950/65 border border-white/10 rounded-xl p-1.5 flex items-center gap-1 shadow-lg w-fit">
+        {/* Camera Presets Selector (Horizontally scrollable on mobile without wrapping) */}
+        <div className="pointer-events-auto backdrop-blur-md bg-slate-950/75 border border-white/10 rounded-xl p-1 flex items-center gap-1 shadow-lg max-w-[calc(100vw-1.5rem)] sm:max-w-fit overflow-x-auto no-scrollbar">
           {(
             [
               { id: "overview", label: "Overview" },
@@ -3734,7 +3803,7 @@ export default function HarborJelly() {
             <button
               key={item.id}
               onClick={() => handlePresetSelect(item.id)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+              className={`px-2 py-1 sm:px-2.5 rounded-lg text-[11px] sm:text-xs font-medium shrink-0 whitespace-nowrap transition-all ${
                 activePreset === item.id
                   ? "bg-cyan-500/25 text-cyan-300 border border-cyan-400/30 shadow-sm"
                   : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
@@ -3745,8 +3814,8 @@ export default function HarborJelly() {
           ))}
         </div>
 
-        {/* Interaction Hint Pill */}
-        <div className="pointer-events-auto backdrop-blur-md bg-slate-950/60 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-slate-300 flex items-center gap-2.5 shadow-lg w-fit">
+        {/* Interaction Hint Pill (Desktop only to prevent mobile clutter) */}
+        <div className="pointer-events-auto hidden sm:flex backdrop-blur-md bg-slate-950/60 border border-white/10 rounded-xl px-3.5 py-1.5 text-xs text-slate-300 items-center gap-2.5 shadow-lg w-fit">
           <svg className="w-4 h-4 text-cyan-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
           </svg>
@@ -3755,35 +3824,60 @@ export default function HarborJelly() {
       </div>
 
       {/* Floating Control Buttons */}
-      <div className="absolute bottom-6 right-6 z-20 flex flex-col sm:flex-row items-end sm:items-center gap-3">
+      <div className="absolute bottom-3 right-3 sm:bottom-6 sm:right-6 z-20 flex items-center gap-2 sm:gap-3">
         {/* Poke Impulse Button */}
         <button
           onClick={handlePoke}
-          className="group relative flex items-center gap-2 px-4 py-2.5 rounded-xl backdrop-blur-md bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/30 hover:border-cyan-400/60 shadow-lg text-xs font-medium tracking-wide transition-all active:scale-95"
+          className="group relative flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl backdrop-blur-md bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/30 hover:border-cyan-400/60 shadow-lg text-xs font-medium tracking-wide transition-all active:scale-95"
+          title="Poke sea jelly to create ripples"
         >
-          <span className="w-2 h-2 rounded-full bg-cyan-400 group-hover:scale-125 transition-transform" />
-          <span>Poke Jelly</span>
+          <span className="w-2 h-2 rounded-full bg-cyan-400 group-hover:scale-125 transition-transform shrink-0" />
+          <span>Poke<span className="hidden sm:inline"> Jelly</span></span>
         </button>
 
         {/* Lighting Mode Toggle Button */}
         <button
           onClick={handleToggleLighting}
-          className={`group flex items-center gap-2.5 px-4 py-2.5 rounded-xl backdrop-blur-md border shadow-lg text-xs font-medium tracking-wide transition-all active:scale-95 ${
+          className={`group flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl backdrop-blur-md border shadow-lg text-xs font-medium tracking-wide transition-all active:scale-95 ${
             isSunset
               ? "bg-amber-500/25 hover:bg-amber-500/35 text-amber-200 border-amber-400/40 hover:border-amber-400/70"
               : "bg-slate-900/80 hover:bg-slate-800/90 text-slate-200 border-white/10 hover:border-white/20"
           }`}
+          title="Toggle lighting mode"
         >
           {isSunset ? (
-            <svg className="w-4 h-4 text-amber-400 group-hover:rotate-12 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 group-hover:rotate-12 transition-transform shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
             </svg>
           ) : (
-            <svg className="w-4 h-4 text-amber-300 group-hover:rotate-45 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 group-hover:rotate-45 transition-transform shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           )}
-          <span>{isSunset ? "Switch to Noon Sun" : "Manila Bay Sunset"}</span>
+          <span>{isSunset ? "Noon" : "Sunset"}</span>
+        </button>
+
+        {/* HUD Visibility Toggle Button (Eye) */}
+        <button
+          onClick={() => setIsHudVisible((prev) => !prev)}
+          className={`flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl backdrop-blur-md border shadow-lg transition-all active:scale-95 ${
+            isHudVisible
+              ? "bg-slate-900/80 hover:bg-slate-800/90 text-slate-300 hover:text-white border-white/10"
+              : "bg-cyan-500/25 text-cyan-300 border-cyan-400/40 shadow-cyan-500/20"
+          }`}
+          title={isHudVisible ? "Hide UI Overlay (View 3D Clearly)" : "Show UI Overlay"}
+          aria-label="Toggle UI Overlay"
+        >
+          {isHudVisible ? (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          )}
         </button>
       </div>
 
