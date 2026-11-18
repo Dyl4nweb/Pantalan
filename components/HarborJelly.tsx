@@ -1097,12 +1097,14 @@ export default function HarborJelly() {
 
   // UI state
   const [isSunset, setIsSunset] = useState<boolean>(false);
-  const [fps, setFps] = useState<number>(60);
-  const [jellyEnergy, setJellyEnergy] = useState<number>(0);
   const [activePreset, setActivePreset] = useState<CameraPreset>("overview");
   const [visitorStats, setVisitorStats] = useState<{ unique: number; total: number } | null>(null);
   const [isHudVisible, setIsHudVisible] = useState<boolean>(true);
   const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
+
+  // High-performance direct DOM telemetry refs (eliminates 60fps React VDOM re-rendering)
+  const fpsTextRef = useRef<HTMLSpanElement | null>(null);
+  const energyTextRef = useRef<HTMLSpanElement | null>(null);
 
   // Interaction refs
   const pokeTriggerRef = useRef<(() => void) | null>(null);
@@ -1168,6 +1170,13 @@ export default function HarborJelly() {
       camera.updateProjectionMatrix();
     };
 
+    const getOptimalPixelRatio = (w: number) => {
+      const isMobile = w < 768;
+      return isMobile
+        ? Math.min(window.devicePixelRatio || 1, 1.35)
+        : Math.min(window.devicePixelRatio || 1, 2.0);
+    };
+
     updateResponsiveCamera(container.clientWidth, container.clientHeight);
 
     const renderer = new THREE.WebGLRenderer({
@@ -1176,7 +1185,7 @@ export default function HarborJelly() {
       alpha: false,
     });
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(getOptimalPixelRatio(container.clientWidth));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
     renderer.shadowMap.enabled = true;
@@ -1239,8 +1248,8 @@ export default function HarborJelly() {
     const sunLight = new THREE.DirectionalLight("#fffbeb", 2.6);
     sunLight.position.set(10.5, 14.5, 8.5);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.mapSize.width = 1024;
+    sunLight.shadow.mapSize.height = 1024;
     sunLight.shadow.camera.near = 0.5;
     sunLight.shadow.camera.far = 38;
     sunLight.shadow.camera.left = -9.0;
@@ -1321,7 +1330,9 @@ export default function HarborJelly() {
     scene.add(plaqueMesh);
 
     // --- TRANSLUCENT TROPICAL SEA JELLY BLOCK (PANORAMIC WIDE FORMAT 9.6 x 3.4 x 6.4) ---
-    const jellyGeo = createSmoothRoundedBoxGeometry(9.6, 3.4, 6.4, 0.25, 64);
+    const isMobileClient = container.clientWidth < 768;
+    const jellySubdivs = isMobileClient ? 36 : 42;
+    const jellyGeo = createSmoothRoundedBoxGeometry(9.6, 3.4, 6.4, 0.25, jellySubdivs);
 
     const jellyUniforms: JellyUniforms = {
       uTime: { value: 0 },
@@ -3331,10 +3342,21 @@ export default function HarborJelly() {
         const height = entry.contentRect.height;
         if (width === 0 || height === 0) return;
         updateResponsiveCamera(width, height);
+        renderer.setPixelRatio(getOptimalPixelRatio(width));
         renderer.setSize(width, height);
       }
     });
     resizeObserver.observe(container);
+
+    // Page visibility handler (pauses loop when tab is backgrounded)
+    let isPageVisible = true;
+    const onVisibilityChange = () => {
+      isPageVisible = !document.hidden;
+      if (isPageVisible) {
+        lastTime = performance.now();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     // --- ANIMATION LOOP ---
     let lastTime = performance.now();
@@ -3344,13 +3366,17 @@ export default function HarborJelly() {
 
     const animate = (now: number) => {
       animationFrameId = requestAnimationFrame(animate);
+      if (!isPageVisible) return;
+
       const dt = Math.min((now - lastTime) * 0.001, 0.05);
       lastTime = now;
 
       frameCount++;
       fpsTimer += dt;
       if (fpsTimer >= 0.5) {
-        setFps(Math.round(frameCount / fpsTimer));
+        if (fpsTextRef.current) {
+          fpsTextRef.current.textContent = String(Math.round(frameCount / fpsTimer));
+        }
         frameCount = 0;
         fpsTimer = 0;
       }
@@ -3368,9 +3394,11 @@ export default function HarborJelly() {
         pokeTime += dt;
       }
 
-      // Jelly energy readout
+      // Jelly energy readout (direct DOM update without React VDOM thrashing)
       const energy = Math.hypot(wobbleX, wobbleZ) + (pokeTime < 3.2 ? pokeAmp * (1 - pokeTime / 3.2) : 0);
-      setJellyEnergy(parseFloat((energy * 10).toFixed(1)));
+      if (energyTextRef.current) {
+        energyTextRef.current.textContent = (energy * 10).toFixed(1);
+      }
 
       // Update shader uniforms
       jellyUniforms.uTime.value = now * 0.001;
@@ -3594,10 +3622,10 @@ export default function HarborJelly() {
       parawGroup.rotation.x = Math.cos(timeSec * 1.6) * 0.025 + wobbleZ * 0.04;
       parawSail.rotation.y = Math.sin(timeSec * 2.8) * 0.05;
 
-      // Animate Realistic Coconut Palm Fronds Swaying in Tropical Sea Breeze
+      // Animate Realistic Coconut Palm Fronds Swaying in Tropical Sea Breeze (Non-accumulating periodic sway)
       allPalmFronds.forEach((frond, idx) => {
         frond.rotation.z = Math.sin(timeSec * 2.2 + idx * 0.45) * 0.032;
-        frond.rotation.x += Math.cos(timeSec * 1.8 + idx * 0.35) * 0.0006;
+        frond.rotation.x = Math.cos(timeSec * 1.8 + idx * 0.35) * 0.024;
       });
 
       // Animate Coastal Birds (Tagak)
@@ -3623,6 +3651,7 @@ export default function HarborJelly() {
     // --- CLEANUP & FULL MEMORY/WEBGL DISPOSAL ---
     return () => {
       cancelAnimationFrame(animationFrameId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       resizeObserver.disconnect();
       domEl.removeEventListener("pointerdown", onPointerDown);
       domEl.removeEventListener("pointerup", onPointerUp);
@@ -3773,11 +3802,11 @@ export default function HarborJelly() {
             <div className="mt-2.5 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400">
               <div className="flex items-center gap-1.5">
                 <span>Jelly Energy:</span>
-                <span className="font-mono text-cyan-400">{jellyEnergy.toFixed(1)}</span>
+                <span ref={energyTextRef} className="font-mono text-cyan-400">0.0</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span>FPS:</span>
-                <span className="font-mono text-emerald-400">{fps}</span>
+                <span ref={fpsTextRef} className="font-mono text-emerald-400">60</span>
               </div>
               <div className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
